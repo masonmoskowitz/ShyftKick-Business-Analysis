@@ -347,28 +347,42 @@ function StepBody({
                   provider={provider}
                   connection={state.pos}
                   onVerified={(result) => {
-                    const existing = new Set(
-                      state.locations
-                        .map((l) => l.providerLocationId)
-                        .filter(Boolean),
+                    // Refresh previously discovered rows in place (a
+                    // re-verify brings better names/addresses), then
+                    // append newly discovered locations.
+                    const fresh = new Map(
+                      (result.locations ?? []).map((loc) => [
+                        loc.providerLocationId,
+                        loc,
+                      ]),
                     );
-                    const discovered = (result.locations ?? [])
-                      .filter((loc) => !existing.has(loc.providerLocationId))
-                      .map((loc) => ({
-                        id: crypto.randomUUID(),
-                        name: loc.name,
-                        address: loc.address ?? "",
-                        included: true,
-                        providerLocationId: loc.providerLocationId,
-                        timezone: loc.timezone,
-                      }));
+                    const refreshed = state.locations.map((loc) => {
+                      if (!loc.providerLocationId) return loc;
+                      const found = fresh.get(loc.providerLocationId);
+                      if (!found) return loc;
+                      fresh.delete(loc.providerLocationId);
+                      return {
+                        ...loc,
+                        name: found.name,
+                        address: found.address ?? loc.address,
+                        timezone: found.timezone ?? loc.timezone,
+                      };
+                    });
+                    const added = [...fresh.values()].map((loc) => ({
+                      id: crypto.randomUUID(),
+                      name: loc.name,
+                      address: loc.address ?? "",
+                      included: true,
+                      providerLocationId: loc.providerLocationId,
+                      timezone: loc.timezone,
+                    }));
                     update({
                       pos: {
                         ...state.pos,
                         credentialsProvided: true,
                         connectionState: "ready",
                       },
-                      locations: [...state.locations, ...discovered],
+                      locations: [...refreshed, ...added],
                     });
                   }}
                   onReset={() =>

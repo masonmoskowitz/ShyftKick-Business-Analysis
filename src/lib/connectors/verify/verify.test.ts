@@ -132,16 +132,113 @@ describe("toast verifier", () => {
     }
   });
 
-  it("returns restaurants when discovery works", async () => {
-    const fetchMock = vi.fn().mockImplementation((url: string) =>
-      String(url).includes("authentication")
-        ? Promise.resolve(jsonResponse(200, { token: { accessToken: "jwt" } }))
-        : Promise.resolve(
-            jsonResponse(200, [
-              { restaurantGuid: "guid-1", restaurantName: "Main St" },
-            ]),
-          ),
-    );
+  it("enriches discovered restaurants with site name, address, and timezone", async () => {
+    const details: Record<string, unknown> = {
+      "guid-1": {
+        general: { name: "Angie's", locationName: "Queen Creek", timeZone: "America/Phoenix" },
+        location: { address1: "123 Rittenhouse Rd", city: "Queen Creek", stateCode: "AZ" },
+      },
+      "guid-2": {
+        general: { name: "Angie's", locationName: "Tempe", timeZone: "America/Phoenix" },
+        location: { address1: "500 Mill Ave", city: "Tempe", stateCode: "AZ" },
+      },
+    };
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const u = String(url);
+      if (u.includes("authentication")) {
+        return Promise.resolve(jsonResponse(200, { token: { accessToken: "jwt" } }));
+      }
+      if (u.includes("/partners/")) {
+        return Promise.resolve(
+          jsonResponse(200, [
+            { restaurantGuid: "guid-1", restaurantName: "Angie's" },
+            { restaurantGuid: "guid-2", restaurantName: "Angie's" },
+          ]),
+        );
+      }
+      const guid = u.split("/").pop() ?? "";
+      return Promise.resolve(jsonResponse(200, details[guid] ?? {}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await verifyCredentials("toast", {
+      clientId: "id",
+      clientSecret: "secret",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.locations).toEqual([
+        {
+          providerLocationId: "guid-1",
+          name: "Angie's — Queen Creek",
+          address: "123 Rittenhouse Rd, Queen Creek, AZ",
+          timezone: "America/Phoenix",
+        },
+        {
+          providerLocationId: "guid-2",
+          name: "Angie's — Tempe",
+          address: "500 Mill Ave, Tempe, AZ",
+          timezone: "America/Phoenix",
+        },
+      ]);
+    }
+  });
+
+  it("disambiguates identical names with the city when detail lacks a site name", async () => {
+    const details: Record<string, unknown> = {
+      "guid-1": {
+        general: { name: "Angie's" },
+        location: { address1: "123 Rittenhouse Rd", city: "Queen Creek", stateCode: "AZ" },
+      },
+      "guid-2": {
+        general: { name: "Angie's" },
+        location: { address1: "500 Mill Ave", city: "Tempe", stateCode: "AZ" },
+      },
+    };
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const u = String(url);
+      if (u.includes("authentication")) {
+        return Promise.resolve(jsonResponse(200, { token: { accessToken: "jwt" } }));
+      }
+      if (u.includes("/partners/")) {
+        return Promise.resolve(
+          jsonResponse(200, [
+            { restaurantGuid: "guid-1", restaurantName: "Angie's" },
+            { restaurantGuid: "guid-2", restaurantName: "Angie's" },
+          ]),
+        );
+      }
+      const guid = u.split("/").pop() ?? "";
+      return Promise.resolve(jsonResponse(200, details[guid] ?? {}));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await verifyCredentials("toast", {
+      clientId: "id",
+      clientSecret: "secret",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.locations.map((l) => l.name)).toEqual([
+        "Angie's (Queen Creek)",
+        "Angie's (Tempe)",
+      ]);
+    }
+  });
+
+  it("falls back to list names when detail fetches fail", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const u = String(url);
+      if (u.includes("authentication")) {
+        return Promise.resolve(jsonResponse(200, { token: { accessToken: "jwt" } }));
+      }
+      if (u.includes("/partners/")) {
+        return Promise.resolve(
+          jsonResponse(200, [
+            { restaurantGuid: "guid-1", restaurantName: "Main St" },
+          ]),
+        );
+      }
+      return Promise.resolve(jsonResponse(500, {}));
+    });
     vi.stubGlobal("fetch", fetchMock);
     const result = await verifyCredentials("toast", {
       clientId: "id",

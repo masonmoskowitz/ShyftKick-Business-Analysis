@@ -22,6 +22,73 @@ interface ToastRestaurant {
   locationName?: string;
 }
 
+interface ToastRestaurantDetail {
+  general?: { name?: string; locationName?: string; timeZone?: string };
+  location?: {
+    address1?: string;
+    city?: string;
+    stateCode?: string;
+    zipCode?: string;
+  };
+}
+
+/**
+ * The list endpoint only carries brand-level names, so a multi-location
+ * group looks like five identical rows. The per-restaurant config
+ * endpoint adds the site name, address, and timezone.
+ */
+async function fetchRestaurantDetail(
+  accessToken: string,
+  guid: string,
+): Promise<VerifiedLocation | null> {
+  try {
+    const response = await providerFetch(
+      `${HOST}/restaurants/v1/restaurants/${encodeURIComponent(guid)}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Toast-Restaurant-External-ID": guid,
+        },
+      },
+    );
+    if (!response.ok) return null;
+    const detail = (await response.json()) as ToastRestaurantDetail;
+    const brand = detail.general?.name;
+    const site = detail.general?.locationName;
+    const name =
+      site && brand && site !== brand
+        ? `${brand} — ${site}`
+        : (site ?? brand ?? null);
+    const addressParts = [
+      detail.location?.address1,
+      detail.location?.city,
+      detail.location?.stateCode,
+    ].filter(Boolean);
+    return {
+      providerLocationId: guid,
+      name: name ?? "Toast restaurant",
+      address: addressParts.length > 0 ? addressParts.join(", ") : undefined,
+      timezone: detail.general?.timeZone,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Same-named locations get their city appended so rows are tellable apart. */
+function disambiguate(locations: VerifiedLocation[]): VerifiedLocation[] {
+  const nameCounts = new Map<string, number>();
+  for (const loc of locations) {
+    nameCounts.set(loc.name, (nameCounts.get(loc.name) ?? 0) + 1);
+  }
+  return locations.map((loc) => {
+    if ((nameCounts.get(loc.name) ?? 0) < 2 || !loc.address) return loc;
+    const city = loc.address.split(", ")[1];
+    return city ? { ...loc, name: `${loc.name} (${city})` } : loc;
+  });
+}
+
 export async function verifyToast(
   credentials: Record<string, string>,
 ): Promise<VerifyResult> {
@@ -90,10 +157,26 @@ export async function verifyToast(
 
     if (discoveryResponse.ok) {
       const restaurants = (await discoveryResponse.json()) as ToastRestaurant[];
-      const locations: VerifiedLocation[] = (restaurants ?? []).map((r) => ({
-        providerLocationId: r.restaurantGuid ?? r.guid ?? "",
-        name: r.restaurantName ?? r.name ?? r.locationName ?? "Toast restaurant",
-      }));
+      const listed = (restaurants ?? [])
+        .map((r) => ({
+          providerLocationId: r.restaurantGuid ?? r.guid ?? "",
+          name:
+            r.locationName ??
+            r.restaurantName ??
+            r.name ??
+            "Toast restaurant",
+        }))
+        .filter((r) => r.providerLocationId !== "");
+
+      // Enrich with site name, address, and timezone (segment cap: 20).
+      const details = await Promise.all(
+        listed
+          .slice(0, 20)
+          .map((r) => fetchRestaurantDetail(accessToken, r.providerLocationId)),
+      );
+      const locations = disambiguate(
+        listed.map((fallback, i) => details[i] ?? fallback),
+      );
       return { ok: true, providerId, environment: "production", locations };
     }
 
