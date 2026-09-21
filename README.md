@@ -65,8 +65,8 @@ begins).
 | Stage | Status |
 |---|---|
 | 1. Access and economics | **In progress** — Toast partner application + design-partner data import are the day-one actions |
-| 2. Data engine | **Started** — canonical model, metric engine, baselines, detection gates, and connector contract are in place with tests; connectors and reconciliation next |
-| 3. Self-serve setup | **Started** — compatibility checker and the full 12-step resumable wizard exist; auth, real connections, and server persistence next |
+| 2. Data engine | **Started** — canonical model, metric engine, baselines, detection gates, and connector contract are in place with tests; live credential verification with location discovery works for Square, Toast, Clover, and 7shifts (`/api/connections/verify`); historical import and reconciliation next |
+| 3. Self-serve setup | **Started** — compatibility checker and the full 12-step resumable wizard exist, with a hard gate: direct-path customers cannot proceed past the POS step until their credentials verify live against the provider; auth and server persistence next |
 | 4. Daily operation | Not started (jobs, delivery, actions) |
 | 5. Commerce and hardening | Not started (checkout, entitlements, spending caps) |
 | 6. Pilot and launch | Not started |

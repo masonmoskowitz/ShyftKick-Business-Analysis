@@ -52,7 +52,7 @@ describe("evaluateCompatibility", () => {
 
   it("report-supported systems are purchasable with the daily-analysis caveat", () => {
     const result = evaluateCompatibility({
-      posProviderId: "clover",
+      posProviderId: "aloha",
       locationCount: 2,
       hasAdminAccess: true,
       hasApiAccess: false,
@@ -60,6 +60,17 @@ describe("evaluateCompatibility", () => {
     expect(result.status).toBe("supported_reports");
     expect(result.purchasable).toBe(true);
     expect(result.explanation).toContain("Daily reports enable daily analysis");
+  });
+
+  it("clover is a direct credential path", () => {
+    const result = evaluateCompatibility({
+      posProviderId: "clover",
+      locationCount: 2,
+      hasAdminAccess: true,
+      hasApiAccess: true,
+    });
+    expect(result.status).toBe("supported");
+    expect(result.purchasable).toBe(true);
   });
 
   it("non-admins are told they can invite the account controller", () => {

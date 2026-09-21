@@ -108,11 +108,23 @@ export const PROVIDERS: ProviderEntry[] = [
     id: "clover",
     name: "Clover",
     category: "pos",
-    status: "supported_reports",
-    connectionPath: "reports",
+    status: "supported",
+    connectionPath: "direct",
     detail:
-      "Clover is supported through scheduled report delivery after we validate your export template against sample totals.",
-    prerequisites: ["Clover Dashboard access with reporting permissions"],
+      "Clover connects with an API token you generate in your own Clover dashboard. Tokens are per merchant, so multi-location groups add one connection per location.",
+    prerequisites: [
+      "Clover Dashboard access with permission to create API tokens",
+    ],
+    credentialFields: [
+      { key: "merchantId", label: "Clover merchant ID", secret: false },
+      { key: "apiToken", label: "Clover API token", secret: true },
+    ],
+    credentialGuide: [
+      "Sign in to your Clover Dashboard",
+      "Open Account & Setup → API Tokens (create a token with read permissions for orders, payments, and employees)",
+      "Copy your merchant ID (in the dashboard URL or Account settings) and the token",
+      "Enter both here — repeat per location for multi-location groups",
+    ],
   },
   {
     id: "aloha",
@@ -121,7 +133,7 @@ export const PROVIDERS: ProviderEntry[] = [
     status: "supported_reports",
     connectionPath: "reports",
     detail:
-      "Aloha is supported through scheduled report delivery after template validation.",
+      "Aloha is supported through scheduled report delivery after template validation. NCR also offers APIs whose availability depends on your NCR agreement and products — if your account includes API access, request a scoped direct-connection evaluation.",
     prerequisites: ["Access to Aloha reporting exports"],
   },
   {
@@ -131,7 +143,7 @@ export const PROVIDERS: ProviderEntry[] = [
     status: "supported_reports",
     connectionPath: "reports",
     detail:
-      "SpotOn is supported through scheduled report delivery after template validation.",
+      "SpotOn is supported through scheduled report delivery after template validation. If SpotOn has provisioned API access for your account, request a scoped direct-connection evaluation.",
     prerequisites: ["SpotOn reporting access"],
   },
   {
@@ -141,7 +153,7 @@ export const PROVIDERS: ProviderEntry[] = [
     status: "supported_reports",
     connectionPath: "reports",
     detail:
-      "Micros is supported through scheduled report delivery after template validation.",
+      "Micros is supported through scheduled report delivery after template validation. Oracle Simphony environments with API access enabled can request a scoped direct-connection evaluation.",
     prerequisites: ["Access to Micros reporting exports"],
   },
   {
@@ -161,6 +173,46 @@ export const PROVIDERS: ProviderEntry[] = [
       "Generate an access token",
       "Paste it here — ShyftKick reads schedules, timecards, and wages; it never edits them",
     ],
+  },
+  {
+    id: "hotschedules",
+    name: "HotSchedules (Fourth)",
+    category: "labor",
+    status: "access_required",
+    connectionPath: "direct",
+    detail:
+      "HotSchedules API access is provisioned through Fourth for your account. If you have API credentials, we run a scoped connection evaluation during setup; scheduled exports are the fallback, and POS timecards can serve as the labor source meanwhile.",
+    prerequisites: ["API access enabled by Fourth/HotSchedules for your account"],
+  },
+  {
+    id: "homebase",
+    name: "Homebase",
+    category: "labor",
+    status: "access_required",
+    connectionPath: "direct",
+    detail:
+      "Homebase provides API access on eligible plans by request. With credentials in hand we run a scoped connection evaluation during setup; POS timecards can serve as the labor source meanwhile.",
+    prerequisites: ["Homebase plan with API access enabled"],
+  },
+  {
+    id: "wheniwork",
+    name: "When I Work",
+    category: "labor",
+    status: "access_required",
+    connectionPath: "direct",
+    detail:
+      "When I Work offers API access depending on your plan. With credentials in hand we run a scoped connection evaluation during setup; POS timecards can serve as the labor source meanwhile.",
+    prerequisites: ["When I Work plan with API access"],
+  },
+  {
+    id: "deputy",
+    name: "Deputy",
+    category: "labor",
+    status: "access_required",
+    connectionPath: "direct",
+    detail:
+      "Deputy accounts can enable API access (tokens/OAuth) on your own instance. With credentials in hand we run a scoped connection evaluation during setup; POS timecards can serve as the labor source meanwhile.",
+    prerequisites: ["Deputy account with API access enabled"],
   },
   {
     id: "other",

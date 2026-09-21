@@ -9,8 +9,16 @@
  */
 
 import { z } from "zod";
+import { getProvider } from "../providers/registry";
 
-export const SETUP_STATE_VERSION = 1;
+export const SETUP_STATE_VERSION = 2;
+
+/** True when the chosen POS uses the direct path and isn't verified yet. */
+export function posVerificationPending(state: SetupState): boolean {
+  const provider = getProvider(state.pos.providerId);
+  if (!provider || provider.connectionPath !== "direct") return false;
+  return state.pos.connectionState !== "ready";
+}
 
 const timeZoneSchema = z
   .string()
@@ -63,11 +71,23 @@ export const locationSchema = z.object({
   name: z.string(),
   address: z.string(),
   included: z.boolean(),
+  /** Present when the location was discovered from the verified connection. */
+  providerLocationId: z.string().optional(),
+  timezone: z.string().optional(),
 });
 
 export const laborSchema = z.object({
   source: z.enum(["", "pos_timecards", "labor_provider"]),
   laborProviderId: z.string(),
+  credentialsProvided: z.boolean(),
+  connectionState: z.enum([
+    "not_connected",
+    "authorizing",
+    "validating",
+    "importing",
+    "ready",
+    "permission_required",
+  ]),
 });
 
 export const prioritySchema = z.object({
@@ -127,7 +147,12 @@ export function defaultSetupState(): SetupState {
     business: { concept: "", serviceModel: "", timezone: "", businessDayCutoff: "03:00" },
     pos: { providerId: "", credentialsProvided: false, connectionState: "not_connected" },
     locations: [],
-    labor: { source: "", laborProviderId: "" },
+    labor: {
+      source: "",
+      laborProviderId: "",
+      credentialsProvided: false,
+      connectionState: "not_connected",
+    },
     priorities: { struggles: [], example: "" },
     rules: { laborTargetPct: null, dayparts: [], notes: "" },
     people: [],
@@ -184,21 +209,42 @@ export const SETUP_STEPS: StepDefinition[] = [
     title: "POS connection",
     summary:
       "Choose your provider and enter your read-only API credentials — or set up scheduled reports.",
-    isComplete: (s) => s.pos.connectionState === "ready",
+    // Direct providers require verified credentials; report-path
+    // providers validate against samples in the Validation step.
+    isComplete: (s) => {
+      const provider = getProvider(s.pos.providerId);
+      if (!provider || provider.connectionPath === "none") return false;
+      if (provider.connectionPath === "reports") return true;
+      return s.pos.connectionState === "ready";
+    },
   },
   {
     id: "locations",
     title: "Locations",
     summary: "Select and name the sites this workspace covers.",
     isComplete: (s) => s.locations.some((l) => l.included && l.name !== ""),
+    blockers: (s) =>
+      posVerificationPending(s)
+        ? [
+            "Verify your POS connection first — your locations are discovered from it",
+          ]
+        : [],
   },
   {
     id: "labor",
     title: "Labor source",
     summary: "Pick the source of truth for hours, schedules, and wages.",
-    isComplete: (s) =>
-      s.labor.source === "pos_timecards" ||
-      (s.labor.source === "labor_provider" && s.labor.laborProviderId !== ""),
+    isComplete: (s) => {
+      if (s.labor.source === "pos_timecards") return true;
+      if (s.labor.source !== "labor_provider" || s.labor.laborProviderId === "")
+        return false;
+      const provider = getProvider(s.labor.laborProviderId);
+      // Providers with live verification must verify; evaluation-only
+      // providers complete on selection and verify during setup review.
+      return provider?.credentialFields
+        ? s.labor.connectionState === "ready"
+        : true;
+    },
   },
   {
     id: "priorities",
@@ -232,9 +278,9 @@ export const SETUP_STEPS: StepDefinition[] = [
     summary: "Import history and reconcile sample totals against your reports.",
     isComplete: (s) => s.validationConfirmed,
     blockers: (s) =>
-      s.pos.connectionState === "ready"
-        ? []
-        : ["Requires a ready POS connection before history can be imported"],
+      posVerificationPending(s)
+        ? ["Requires a verified POS connection before history can be imported"]
+        : [],
   },
   {
     id: "preview",

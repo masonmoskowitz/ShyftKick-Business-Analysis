@@ -13,6 +13,7 @@ import {
 import {
   SETUP_STEPS,
   defaultSetupState,
+  posVerificationPending,
   setupProgress,
   type SetupState,
   type StepId,
@@ -157,15 +158,30 @@ export function SetupWizard() {
           >
             <ChevronLeft size={16} aria-hidden /> Back
           </button>
-          {activeIndex < SETUP_STEPS.length - 1 && (
-            <button
-              type="button"
-              onClick={() => setActiveId(SETUP_STEPS[activeIndex + 1].id)}
-              className="flex items-center gap-1 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-            >
-              Continue <ChevronRight size={16} aria-hidden />
-            </button>
-          )}
+          {activeIndex < SETUP_STEPS.length - 1 &&
+            (() => {
+              // Hard gate: the POS step cannot be left forward until a
+              // direct connection verifies (report paths pass through).
+              const gated =
+                activeStep.id === "pos" && posVerificationPending(state);
+              return (
+                <div className="flex items-center gap-3">
+                  {gated && (
+                    <span className="text-xs text-muted">
+                      Verify your connection to continue
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    disabled={gated}
+                    onClick={() => setActiveId(SETUP_STEPS[activeIndex + 1].id)}
+                    className="flex items-center gap-1 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+                  >
+                    Continue <ChevronRight size={16} aria-hidden />
+                  </button>
+                </div>
+              );
+            })()}
         </footer>
       </section>
     </div>
@@ -329,8 +345,41 @@ function StepBody({
                 <CredentialEntry
                   key={provider.id}
                   provider={provider}
-                  state={state}
-                  update={update}
+                  connection={state.pos}
+                  onVerified={(result) => {
+                    const existing = new Set(
+                      state.locations
+                        .map((l) => l.providerLocationId)
+                        .filter(Boolean),
+                    );
+                    const discovered = (result.locations ?? [])
+                      .filter((loc) => !existing.has(loc.providerLocationId))
+                      .map((loc) => ({
+                        id: crypto.randomUUID(),
+                        name: loc.name,
+                        address: loc.address ?? "",
+                        included: true,
+                        providerLocationId: loc.providerLocationId,
+                        timezone: loc.timezone,
+                      }));
+                    update({
+                      pos: {
+                        ...state.pos,
+                        credentialsProvided: true,
+                        connectionState: "ready",
+                      },
+                      locations: [...state.locations, ...discovered],
+                    });
+                  }}
+                  onReset={() =>
+                    update({
+                      pos: {
+                        ...state.pos,
+                        credentialsProvided: false,
+                        connectionState: "not_connected",
+                      },
+                    })
+                  }
                 />
               ) : provider.connectionPath === "reports" ? (
                 <p className="mt-3 text-muted">
@@ -380,6 +429,14 @@ function StepBody({
                 }}
                 aria-label={`Include ${loc.name || "location"}`}
               />
+              {loc.providerLocationId && (
+                <span
+                  className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent-ink"
+                  title={`Discovered from your POS (ID ${loc.providerLocationId})`}
+                >
+                  from POS
+                </span>
+              )}
               <input
                 className={inputClass}
                 value={loc.name}
@@ -434,8 +491,10 @@ function StepBody({
             <Plus size={15} aria-hidden /> Add location
           </button>
           <p className="text-xs text-muted">
-            Once your POS connection is ready, discovered provider locations
-            appear here to map — preventing duplicate imports.
+            Locations tagged &ldquo;from POS&rdquo; were discovered live from
+            your verified connection and carry the provider&apos;s ID, which
+            prevents duplicate imports. Add rows manually for sites your
+            connection doesn&apos;t cover (e.g. the scheduled-report path).
           </p>
         </div>
       );
@@ -473,7 +532,12 @@ function StepBody({
                 value={state.labor.laborProviderId}
                 onChange={(e) =>
                   update({
-                    labor: { ...state.labor, laborProviderId: e.target.value },
+                    labor: {
+                      ...state.labor,
+                      laborProviderId: e.target.value,
+                      credentialsProvided: false,
+                      connectionState: "not_connected",
+                    },
                   })
                 }
               >
@@ -486,6 +550,48 @@ function StepBody({
               </select>
             </Field>
           )}
+          {state.labor.source === "labor_provider" &&
+            (() => {
+              const laborProvider = getProvider(state.labor.laborProviderId);
+              if (!laborProvider) return null;
+              return (
+                <div className="rounded-lg border border-line bg-canvas p-4 text-sm">
+                  <p className="font-medium">{laborProvider.name}</p>
+                  <p className="mt-1 text-muted">{laborProvider.detail}</p>
+                  {laborProvider.credentialFields ? (
+                    <CredentialEntry
+                      key={laborProvider.id}
+                      provider={laborProvider}
+                      connection={state.labor}
+                      onVerified={() =>
+                        update({
+                          labor: {
+                            ...state.labor,
+                            credentialsProvided: true,
+                            connectionState: "ready",
+                          },
+                        })
+                      }
+                      onReset={() =>
+                        update({
+                          labor: {
+                            ...state.labor,
+                            credentialsProvided: false,
+                            connectionState: "not_connected",
+                          },
+                        })
+                      }
+                    />
+                  ) : (
+                    <ul className="mt-2 list-disc space-y-0.5 pl-5 text-muted">
+                      {laborProvider.prerequisites.map((p) => (
+                        <li key={p}>{p}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })()}
         </div>
       );
 
@@ -764,43 +870,94 @@ function StepBody({
 
 /* ---------- credential entry ---------- */
 
+interface ConnectionInfo {
+  credentialsProvided: boolean;
+  connectionState: SetupState["pos"]["connectionState"];
+}
+
+interface VerifyResponse {
+  ok: boolean;
+  environment?: string;
+  note?: string;
+  message?: string;
+  locations?: {
+    providerLocationId: string;
+    name: string;
+    address?: string;
+    timezone?: string;
+  }[];
+}
+
 function CredentialEntry({
   provider,
-  state,
-  update,
+  connection,
+  onVerified,
+  onReset,
 }: {
   provider: ProviderEntry;
-  state: SetupState;
-  update: (patch: Partial<SetupState>) => void;
+  connection: ConnectionInfo;
+  onVerified: (result: VerifyResponse) => void;
+  onReset: () => void;
 }) {
   // Credential values live only in this component's memory. They are
-  // submitted to encrypted server-side secret storage — never written to
-  // setup state, localStorage, or logs.
+  // sent to the server-side verification route over HTTPS — never
+  // written to setup state, localStorage, or logs.
   const [values, setValues] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successNote, setSuccessNote] = useState<string | null>(null);
   const fields = provider.credentialFields ?? [];
   const allFilled = fields.every((f) => (values[f.key] ?? "").trim() !== "");
 
-  if (state.pos.credentialsProvided) {
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/connections/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ providerId: provider.id, credentials: values }),
+      });
+      const result = (await response.json()) as VerifyResponse;
+      if (result.ok) {
+        setValues({});
+        setSuccessNote(
+          [
+            result.environment === "sandbox" ? "Sandbox environment." : null,
+            result.note ?? null,
+          ]
+            .filter(Boolean)
+            .join(" ") || null,
+        );
+        onVerified(result);
+      } else {
+        setError(result.message ?? "Verification failed. Check the credentials and try again.");
+      }
+    } catch {
+      setError("Couldn't reach the verification service. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (connection.connectionState === "ready" && connection.credentialsProvided) {
     return (
       <div className="mt-3 rounded-md border border-line bg-surface p-3">
         <p className="flex items-center gap-1.5 font-medium">
-          <Check size={15} className="text-good" aria-hidden /> Credentials
-          received
+          <Check size={15} className="text-good" aria-hidden /> Connection
+          verified
         </p>
         <p className="mt-1 text-xs text-muted">
-          Held securely for verification. They are never shown again here.
+          {provider.name} accepted these credentials with read access.
+          {successNote ? ` ${successNote}` : ""} They are never shown again
+          here.
         </p>
         <button
           type="button"
-          onClick={() =>
-            update({
-              pos: {
-                ...state.pos,
-                credentialsProvided: false,
-                connectionState: "not_connected",
-              },
-            })
-          }
+          onClick={() => {
+            setSuccessNote(null);
+            onReset();
+          }}
           className="mt-2 rounded-md border border-line px-3 py-1.5 text-xs hover:bg-canvas"
         >
           Replace credentials
@@ -832,27 +989,22 @@ function CredentialEntry({
           />
         </Field>
       ))}
+      {error && (
+        <p className="rounded-md bg-bad-soft px-3 py-2 text-xs text-bad">{error}</p>
+      )}
       <button
         type="button"
-        disabled={!allFilled}
-        onClick={() => {
-          setValues({});
-          update({
-            pos: {
-              ...state.pos,
-              credentialsProvided: true,
-              connectionState: "validating",
-            },
-          });
-        }}
+        disabled={!allFilled || busy}
+        onClick={submit}
         className="rounded-md bg-accent px-4 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40"
       >
-        Submit credentials for verification
+        {busy ? `Verifying with ${provider.name}…` : "Verify connection"}
       </button>
       <p className="text-xs text-muted">
-        Read-only access only. Credentials go to encrypted server-side
-        storage and never touch your browser&apos;s saved data; the
-        connection and permission test runs before any import.
+        Read-only access only. Credentials are checked live against{" "}
+        {provider.name} on our server and never touch your browser&apos;s
+        saved data. You can&apos;t continue past this step until the
+        connection verifies.
       </p>
     </div>
   );
