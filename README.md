@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ShyftKick — Restaurant Intelligence
 
-## Getting Started
+Self-serve restaurant analysis for operators with 1–10 locations.
+Customers check compatibility, purchase, connect their systems read-only,
+describe their priorities, configure recipients, and activate automated
+daily briefings: **what changed, the evidence, and the next useful action.**
 
-First, run the development server:
+The full product specification lives in
+[`docs/product-scope.md`](docs/product-scope.md) (v0.2). It is the source
+of truth for scope decisions, analysis rules, and release gates — read it
+before changing behavior.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Product principles (enforced in code)
+
+- **Deterministic numbers.** Code computes every metric, baseline, and
+  candidate finding. The language model only narrates verified findings;
+  its output is schema-constrained and every number it reports is
+  validated against computed facts.
+- **Undefined beats misleading.** Zero-denominator metrics return `null`
+  (labor % with zero sales, SPLH with zero hours) and disable dependent
+  findings rather than fabricating a value.
+- **Honest availability.** The provider registry and compatibility
+  checker only claim what has passed end-to-end tests. Nobody is charged
+  for functionality their account can't reach.
+- **Read-only connections.** ShyftKick never modifies schedules, payroll,
+  menus, or POS records.
+- **Tenant isolation, consent, idempotency.** RLS on every table, SMS
+  consent belongs to the recipient, and every outbound message carries an
+  idempotency key so retries never double-send.
+
+## Repository layout
+
+```
+docs/product-scope.md         Product spec v0.2 (source of truth)
+src/lib/model/                Canonical data model (integer cents, ISO dates)
+src/lib/engine/               Deterministic metrics, baselines, business-day
+                              assignment, deviation detection — fully unit-tested
+src/lib/connectors/           Connector contract + connection state machine
+src/lib/providers/            Provider registry + compatibility evaluator
+src/lib/setup/                Resumable 12-step setup state (zod-validated)
+                              with a swappable persistence adapter
+src/lib/briefing/             Sample briefing generated through the real engine
+src/app/                      Landing, compatibility checker, guided setup wizard
+supabase/migrations/          Core schema: tenancy, connections, normalized data,
+                              aggregates, findings, reports, actions, deliveries,
+                              usage, audit — RLS enabled
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev        # http://localhost:3000
+npm test           # vitest — engine + compatibility suites
+npm run build      # production build (Vercel-compatible)
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+No environment variables are needed for the current stage: setup-wizard
+progress persists locally through a storage adapter, and the Supabase
+adapter replaces it in Stage 3 (`cp .env.example .env.local` when wiring
+begins).
 
-## Learn More
+## Build sequence status (scope §12)
 
-To learn more about Next.js, take a look at the following resources:
+| Stage | Status |
+|---|---|
+| 1. Access and economics | **In progress** — Toast partner application + design-partner data import are the day-one actions |
+| 2. Data engine | **Started** — canonical model, metric engine, baselines, detection gates, and connector contract are in place with tests; connectors and reconciliation next |
+| 3. Self-serve setup | **Started** — compatibility checker and the full 12-step resumable wizard exist; auth, real connections, and server persistence next |
+| 4. Daily operation | Not started (jobs, delivery, actions) |
+| 5. Commerce and hardening | Not started (checkout, entitlements, spending caps) |
+| 6. Pilot and launch | Not started |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Launch connector pair: **Square** (build first, no external gate) and
+**Toast** (single-account build now; self-serve distribution pending
+Toast commercial approval — covered by scheduled reports meanwhile).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploy
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Standard Next.js on Vercel. The scheduler/worker system for imports and
+delivery is a Stage 4 decision (never a browser tab or a single long web
+request — see scope §8).
