@@ -99,7 +99,7 @@ export default function Home() {
             {
               icon: PlugZap,
               title: "1. Check and connect",
-              body: "Confirm compatibility before paying a dollar, then authorize a read-only connection — or set up scheduled report delivery for systems without a direct path.",
+              body: "Confirm compatibility before paying a dollar, then enter your POS's read-only API credentials — most systems issue them in minutes — or set up scheduled report delivery instead.",
             },
             {
               icon: FileText,

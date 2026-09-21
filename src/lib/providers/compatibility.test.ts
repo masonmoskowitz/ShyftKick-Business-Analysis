@@ -8,6 +8,7 @@ describe("evaluateCompatibility", () => {
       posProviderId: "square",
       locationCount: 14,
       hasAdminAccess: true,
+      hasApiAccess: true,
     });
     expect(result.status).toBe("out_of_segment");
     expect(result.purchasable).toBe(false);
@@ -18,37 +19,55 @@ describe("evaluateCompatibility", () => {
       posProviderId: "mystery-pos",
       locationCount: 3,
       hasAdminAccess: true,
+      hasApiAccess: true,
     });
     expect(result.status).toBe("not_supported");
     expect(result.purchasable).toBe(false);
   });
 
-  it("report-supported systems are purchasable with the daily-analysis caveat", () => {
+  it("direct providers with credentials in hand are supported and purchasable", () => {
+    for (const posProviderId of ["square", "toast"]) {
+      const result = evaluateCompatibility({
+        posProviderId,
+        locationCount: 2,
+        hasAdminAccess: true,
+        hasApiAccess: true,
+      });
+      expect(result.status).toBe("supported");
+      expect(result.purchasable).toBe(true);
+    }
+  });
+
+  it("direct providers without API access become access_required with a guide", () => {
     const result = evaluateCompatibility({
       posProviderId: "toast",
       locationCount: 2,
       hasAdminAccess: true,
+      hasApiAccess: false,
+    });
+    expect(result.status).toBe("access_required");
+    expect(result.purchasable).toBe(false);
+    expect(result.nextSteps.join(" ")).toContain("RMS Essentials");
+  });
+
+  it("report-supported systems are purchasable with the daily-analysis caveat", () => {
+    const result = evaluateCompatibility({
+      posProviderId: "clover",
+      locationCount: 2,
+      hasAdminAccess: true,
+      hasApiAccess: false,
     });
     expect(result.status).toBe("supported_reports");
     expect(result.purchasable).toBe(true);
     expect(result.explanation).toContain("Daily reports enable daily analysis");
   });
 
-  it("access-required systems never charge before verification", () => {
-    const result = evaluateCompatibility({
-      posProviderId: "square",
-      locationCount: 1,
-      hasAdminAccess: true,
-    });
-    expect(result.status).toBe("access_required");
-    expect(result.purchasable).toBe(false);
-  });
-
   it("non-admins are told they can invite the account controller", () => {
     const result = evaluateCompatibility({
-      posProviderId: "toast",
+      posProviderId: "square",
       locationCount: 2,
       hasAdminAccess: false,
+      hasApiAccess: true,
     });
     expect(result.nextSteps.join(" ")).toContain("Invite the person");
   });

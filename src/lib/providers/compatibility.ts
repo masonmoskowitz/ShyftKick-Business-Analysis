@@ -15,6 +15,8 @@ export interface CompatibilityInput {
   laborProviderId?: string | null;
   locationCount: number;
   hasAdminAccess: boolean;
+  /** Whether the customer already has (or can create) read-only API credentials. */
+  hasApiAccess: boolean;
 }
 
 export interface CompatibilityResult {
@@ -65,6 +67,21 @@ export function evaluateCompatibility(
 
   switch (pos.status) {
     case "supported":
+      // Direct path needs the customer's own read-only credentials; without
+      // them (or a way to get them), the honest state is access_required.
+      if (!input.hasApiAccess) {
+        return {
+          status: "access_required",
+          headline: `${pos.name} works — you need API access first`,
+          explanation: `${pos.detail} You told us you don't have API credentials yet; here's how to get them.`,
+          nextSteps: [
+            ...accessStep,
+            ...(pos.credentialGuide ?? pos.prerequisites.map((p) => `Verify: ${p}`)),
+            "Come back and re-run this check once you have credentials — we don't charge before verification",
+          ],
+          purchasable: false,
+        };
+      }
       return {
         status: "supported",
         headline: `${pos.name} is supported`,

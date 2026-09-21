@@ -71,9 +71,12 @@ begins).
 | 5. Commerce and hardening | Not started (checkout, entitlements, spending caps) |
 | 6. Pilot and launch | Not started |
 
-Launch connector pair: **Square** (build first, no external gate) and
-**Toast** (single-account build now; self-serve distribution pending
-Toast commercial approval — covered by scheduled reports meanwhile).
+Launch connector pair: **Square** and **Toast**, both authenticated with
+**customer-supplied read-only API credentials** entered during setup
+(scope v0.3) — no provider partner program or hosted OAuth gates launch.
+The wizard carries per-provider instructions for creating or requesting
+credentials; scheduled report delivery covers systems without a direct
+path.
 
 ## Deploy
 

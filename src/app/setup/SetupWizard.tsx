@@ -18,7 +18,12 @@ import {
   type StepId,
 } from "@/lib/setup/state";
 import { LocalSetupStorage } from "@/lib/setup/storage";
-import { laborProviders, posProviders, getProvider } from "@/lib/providers/registry";
+import {
+  laborProviders,
+  posProviders,
+  getProvider,
+  type ProviderEntry,
+} from "@/lib/providers/registry";
 import { sampleBriefing } from "@/lib/briefing/sample";
 import { BriefingCard } from "@/components/BriefingCard";
 
@@ -300,7 +305,11 @@ function StepBody({
               value={state.pos.providerId}
               onChange={(e) =>
                 update({
-                  pos: { providerId: e.target.value, connectionState: "not_connected" },
+                  pos: {
+                    providerId: e.target.value,
+                    credentialsProvided: false,
+                    connectionState: "not_connected",
+                  },
                 })
               }
             >
@@ -316,13 +325,22 @@ function StepBody({
             <div className="rounded-lg border border-line bg-canvas p-4 text-sm">
               <p className="font-medium">{provider.name}</p>
               <p className="mt-1 text-muted">{provider.detail}</p>
-              {provider.prerequisites.length > 0 && (
-                <ul className="mt-2 list-disc space-y-0.5 pl-5 text-muted">
-                  {provider.prerequisites.map((p) => (
-                    <li key={p}>{p}</li>
-                  ))}
-                </ul>
-              )}
+              {provider.connectionPath === "direct" && provider.credentialFields ? (
+                <CredentialEntry
+                  key={provider.id}
+                  provider={provider}
+                  state={state}
+                  update={update}
+                />
+              ) : provider.connectionPath === "reports" ? (
+                <p className="mt-3 text-muted">
+                  During setup you get provider-specific instructions to
+                  schedule a daily report export to your dedicated ShyftKick
+                  ingestion address. Column mapping, units, totals, location,
+                  and dates are validated on your first samples before
+                  anything activates.
+                </p>
+              ) : null}
               <p className="mt-3 text-xs text-muted">
                 Connection status:{" "}
                 <span className="font-medium text-ink">
@@ -742,6 +760,102 @@ function StepBody({
       );
     }
   }
+}
+
+/* ---------- credential entry ---------- */
+
+function CredentialEntry({
+  provider,
+  state,
+  update,
+}: {
+  provider: ProviderEntry;
+  state: SetupState;
+  update: (patch: Partial<SetupState>) => void;
+}) {
+  // Credential values live only in this component's memory. They are
+  // submitted to encrypted server-side secret storage — never written to
+  // setup state, localStorage, or logs.
+  const [values, setValues] = useState<Record<string, string>>({});
+  const fields = provider.credentialFields ?? [];
+  const allFilled = fields.every((f) => (values[f.key] ?? "").trim() !== "");
+
+  if (state.pos.credentialsProvided) {
+    return (
+      <div className="mt-3 rounded-md border border-line bg-surface p-3">
+        <p className="flex items-center gap-1.5 font-medium">
+          <Check size={15} className="text-good" aria-hidden /> Credentials
+          received
+        </p>
+        <p className="mt-1 text-xs text-muted">
+          Held securely for verification. They are never shown again here.
+        </p>
+        <button
+          type="button"
+          onClick={() =>
+            update({
+              pos: {
+                ...state.pos,
+                credentialsProvided: false,
+                connectionState: "not_connected",
+              },
+            })
+          }
+          className="mt-2 rounded-md border border-line px-3 py-1.5 text-xs hover:bg-canvas"
+        >
+          Replace credentials
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-3">
+      {provider.credentialGuide && (
+        <ol className="list-decimal space-y-0.5 pl-5 text-muted">
+          {provider.credentialGuide.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+      )}
+      {fields.map((field) => (
+        <Field key={field.key} label={field.label}>
+          <input
+            type={field.secret ? "password" : "text"}
+            autoComplete="off"
+            className={inputClass}
+            placeholder={field.placeholder}
+            value={values[field.key] ?? ""}
+            onChange={(e) =>
+              setValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+            }
+          />
+        </Field>
+      ))}
+      <button
+        type="button"
+        disabled={!allFilled}
+        onClick={() => {
+          setValues({});
+          update({
+            pos: {
+              ...state.pos,
+              credentialsProvided: true,
+              connectionState: "validating",
+            },
+          });
+        }}
+        className="rounded-md bg-accent px-4 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-40"
+      >
+        Submit credentials for verification
+      </button>
+      <p className="text-xs text-muted">
+        Read-only access only. Credentials go to encrypted server-side
+        storage and never touch your browser&apos;s saved data; the
+        connection and permission test runs before any import.
+      </p>
+    </div>
+  );
 }
 
 /* ---------- people & delivery ---------- */

@@ -1,12 +1,19 @@
 /**
  * Provider registry — the single source of truth for what the
  * compatibility checker and the setup wizard may claim (product scope
- * §3–§4). A provider appears as "supported" here only after its
- * end-to-end connection, import, and recovery tests pass; until then
- * it must carry the honest gated status.
+ * §3–§4).
+ *
+ * Launch connection model (scope v0.3): customers supply their own
+ * read-only API credentials during setup; ShyftKick depends on no
+ * provider partner program or hosted OAuth. Each direct provider
+ * declares the credential fields the wizard collects and a guide for
+ * obtaining them. Credentials are stored server-side in managed secret
+ * storage — never in the browser.
  *
  * Statuses map to the four pre-purchase compatibility results:
- * - supported: tested self-serve path, subject to account verification
+ * - supported: direct credential-entry path, subject to account
+ *   verification (customers without credentials yet are routed to the
+ *   guide and shown as access_required)
  * - supported_reports: works via validated scheduled reports
  * - access_required: provider approval, subscription, or admin
  *   permissions needed first
@@ -21,6 +28,14 @@ export type SupportStatus =
   | "access_required"
   | "not_supported";
 
+export interface CredentialField {
+  key: string;
+  label: string;
+  /** Secret values render masked and are never persisted client-side. */
+  secret: boolean;
+  placeholder?: string;
+}
+
 export interface ProviderEntry {
   id: string;
   name: string;
@@ -32,48 +47,62 @@ export interface ProviderEntry {
   detail: string;
   /** Prerequisites the customer must have before connecting. */
   prerequisites: string[];
-  /** True while our own gate (partner approval, validation) is pending. */
-  pendingOurGate: boolean;
+  /** Credential fields the setup wizard collects (direct path only). */
+  credentialFields?: CredentialField[];
+  /** Step-by-step instructions for obtaining read-only credentials. */
+  credentialGuide?: string[];
 }
 
-/**
- * Launch posture per scope v0.2: Square direct first (no external
- * distribution gate), Toast direct gated on commercial distribution
- * approval with the scheduled-report path covering Toast customers
- * meanwhile, 7shifts gated on a partner route, and scheduled reports
- * as a headline provider-agnostic path.
- *
- * NOTE: statuses here reflect the plan, not shipped connectors. Flip a
- * provider to "supported" only when the scope §12 gates pass.
- */
 export const PROVIDERS: ProviderEntry[] = [
   {
     id: "square",
     name: "Square",
     category: "pos",
-    status: "access_required",
+    status: "supported",
     connectionPath: "direct",
     detail:
-      "Square connects directly with seller-authorized OAuth. This is our first direct connector; it is in validation and opens to customers when import and reconciliation tests pass.",
+      "Square connects with a read-only API access token from your own Square account. We test the connection and permissions, then reconcile imported totals against your Square reports before anything activates.",
     prerequisites: [
       "Square account with owner or admin access",
-      "Locations active in Square Dashboard",
+      "An API access token (takes about five minutes to create)",
     ],
-    pendingOurGate: true,
+    credentialFields: [
+      {
+        key: "accessToken",
+        label: "Square access token",
+        secret: true,
+        placeholder: "EAAA…",
+      },
+    ],
+    credentialGuide: [
+      "Sign in at developer.squareup.com with your Square account",
+      "Create an application (name it anything, e.g. “ShyftKick”)",
+      "Open the application and copy the production Access Token",
+      "Paste it here — ShyftKick only requests read scopes and never writes to your account",
+    ],
   },
   {
     id: "toast",
     name: "Toast",
     category: "pos",
-    status: "supported_reports",
-    connectionPath: "reports",
+    status: "supported",
+    connectionPath: "direct",
     detail:
-      "Toast is supported today through scheduled report delivery. A direct read-only connection requires Toast standard API access (RMS Essentials or higher) on your account; our self-serve direct connection is pending Toast commercial approval.",
+      "Toast connects with your own standard API access credentials (read-only), available on RMS Essentials or higher. If API access isn't enabled on your account yet, your Toast representative can enable it. Scheduled report delivery is also available meanwhile.",
     prerequisites: [
-      "Toast Web access with reporting permissions",
-      "For direct API: RMS Essentials or higher subscription",
+      "Toast RMS Essentials or higher",
+      "Standard API access credentials (client ID and secret)",
     ],
-    pendingOurGate: true,
+    credentialFields: [
+      { key: "clientId", label: "Toast client ID", secret: false },
+      { key: "clientSecret", label: "Toast client secret", secret: true },
+    ],
+    credentialGuide: [
+      "Confirm your subscription includes API access (RMS Essentials or higher)",
+      "Request standard API access credentials through Toast Web or your Toast representative",
+      "Toast issues a read-only client ID and secret",
+      "Enter both here — locations on your account are discovered automatically",
+    ],
   },
   {
     id: "clover",
@@ -84,7 +113,6 @@ export const PROVIDERS: ProviderEntry[] = [
     detail:
       "Clover is supported through scheduled report delivery after we validate your export template against sample totals.",
     prerequisites: ["Clover Dashboard access with reporting permissions"],
-    pendingOurGate: true,
   },
   {
     id: "aloha",
@@ -93,9 +121,8 @@ export const PROVIDERS: ProviderEntry[] = [
     status: "supported_reports",
     connectionPath: "reports",
     detail:
-      "Aloha is supported through scheduled report delivery after template validation. Direct middleware integration is a later evaluation.",
+      "Aloha is supported through scheduled report delivery after template validation.",
     prerequisites: ["Access to Aloha reporting exports"],
-    pendingOurGate: true,
   },
   {
     id: "spoton",
@@ -106,7 +133,6 @@ export const PROVIDERS: ProviderEntry[] = [
     detail:
       "SpotOn is supported through scheduled report delivery after template validation.",
     prerequisites: ["SpotOn reporting access"],
-    pendingOurGate: true,
   },
   {
     id: "micros",
@@ -115,20 +141,26 @@ export const PROVIDERS: ProviderEntry[] = [
     status: "supported_reports",
     connectionPath: "reports",
     detail:
-      "Micros is supported through scheduled report delivery after template validation. Direct middleware integration is a later evaluation.",
+      "Micros is supported through scheduled report delivery after template validation.",
     prerequisites: ["Access to Micros reporting exports"],
-    pendingOurGate: true,
   },
   {
     id: "seven_shifts",
     name: "7shifts",
     category: "labor",
-    status: "access_required",
+    status: "supported",
     connectionPath: "direct",
     detail:
-      "7shifts labor data (schedules, timecards, wages) requires our partner connection route, which is in progress. POS timecards can serve as the labor source meanwhile if sufficient.",
-    prerequisites: ["7shifts account with API access"],
-    pendingOurGate: true,
+      "7shifts labor data (schedules, timecards, wages) connects with your own API access token. POS timecards can serve as the labor source instead if they're sufficient.",
+    prerequisites: ["7shifts plan with API access"],
+    credentialFields: [
+      { key: "accessToken", label: "7shifts access token", secret: true },
+    ],
+    credentialGuide: [
+      "In 7shifts, open Company Settings → Developer Tools (plan with API access required)",
+      "Generate an access token",
+      "Paste it here — ShyftKick reads schedules, timecards, and wages; it never edits them",
+    ],
   },
   {
     id: "other",
@@ -139,7 +171,6 @@ export const PROVIDERS: ProviderEntry[] = [
     detail:
       "Not yet supported. If your system can email or export a daily sales report, the scheduled-report path may work — join the waitlist and we will evaluate your template, or request a separately scoped integration.",
     prerequisites: [],
-    pendingOurGate: false,
   },
 ];
 

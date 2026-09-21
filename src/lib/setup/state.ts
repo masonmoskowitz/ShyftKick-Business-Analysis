@@ -41,6 +41,12 @@ export const businessSchema = z.object({
 
 export const posSchema = z.object({
   providerId: z.string(),
+  /**
+   * Whether the customer submitted credential fields. The credential
+   * values themselves go to server-side secret storage — they are never
+   * part of this state and never touch localStorage.
+   */
+  credentialsProvided: z.boolean(),
   /** Mirror of the connector state machine; the wizard renders it, never sets "ready" itself. */
   connectionState: z.enum([
     "not_connected",
@@ -119,7 +125,7 @@ export function defaultSetupState(): SetupState {
     version: SETUP_STATE_VERSION,
     account: { email: "", businessName: "", emailVerified: false },
     business: { concept: "", serviceModel: "", timezone: "", businessDayCutoff: "03:00" },
-    pos: { providerId: "", connectionState: "not_connected" },
+    pos: { providerId: "", credentialsProvided: false, connectionState: "not_connected" },
     locations: [],
     labor: { source: "", laborProviderId: "" },
     priorities: { struggles: [], example: "" },
@@ -176,7 +182,8 @@ export const SETUP_STEPS: StepDefinition[] = [
   {
     id: "pos",
     title: "POS connection",
-    summary: "Choose your provider and authorize a read-only connection.",
+    summary:
+      "Choose your provider and enter your read-only API credentials — or set up scheduled reports.",
     isComplete: (s) => s.pos.connectionState === "ready",
   },
   {

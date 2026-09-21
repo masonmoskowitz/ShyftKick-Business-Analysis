@@ -27,6 +27,7 @@ export function CompatibilityChecker() {
   const [posId, setPosId] = useState("");
   const [locationCount, setLocationCount] = useState(1);
   const [hasAdminAccess, setHasAdminAccess] = useState(true);
+  const [hasApiAccess, setHasApiAccess] = useState(true);
   const [result, setResult] = useState<CompatibilityResult | null>(null);
 
   return (
@@ -63,14 +64,30 @@ export function CompatibilityChecker() {
             }}
           />
         </label>
-        <label className="flex items-end gap-2 pb-2 text-sm">
-          <input
-            type="checkbox"
-            checked={hasAdminAccess}
-            onChange={(e) => setHasAdminAccess(e.target.checked)}
-          />
-          I control the POS account
-        </label>
+        <div className="flex flex-col justify-end gap-1.5 pb-1">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={hasAdminAccess}
+              onChange={(e) => {
+                setHasAdminAccess(e.target.checked);
+                setResult(null);
+              }}
+            />
+            I control the POS account
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={hasApiAccess}
+              onChange={(e) => {
+                setHasApiAccess(e.target.checked);
+                setResult(null);
+              }}
+            />
+            I have (or can create) read-only API access
+          </label>
+        </div>
         <div className="sm:col-span-3">
           <button
             type="button"
@@ -81,6 +98,7 @@ export function CompatibilityChecker() {
                   posProviderId: posId,
                   locationCount,
                   hasAdminAccess,
+                  hasApiAccess,
                 }),
               )
             }

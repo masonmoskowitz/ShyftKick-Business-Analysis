@@ -1,6 +1,6 @@
-# ShyftKick restaurant intelligence — product scope v0.2
+# ShyftKick restaurant intelligence — product scope v0.3
 
-Planning baseline: September 20, 2026. Revised September 20, 2026 (v0.2): Square and Toast confirmed as the launch connector pair, the scheduled-report path promoted to a launch capability, Mason's own restaurant named as design partner, and the build estimate updated for a second connector. This is a proposed product specification, not a statement that integrations or features have been built. Prices, schedules, and operating targets below are planning assumptions to validate.
+Planning baseline: September 20, 2026. Revised September 20, 2026 (v0.2): Square and Toast confirmed as the launch connector pair, the scheduled-report path promoted to a launch capability, Mason's own restaurant named as design partner, and the build estimate updated for a second connector. Revised again (v0.3): customer-supplied read-only API credentials confirmed as the launch connection model; provider-hosted OAuth flows and the Toast commercial-distribution route are deferred to post-launch conveniences and no longer gate anything. This is a proposed product specification, not a statement that integrations or features have been built. Prices, schedules, and operating targets below are planning assumptions to validate.
 
 ## 1. Product decision
 
@@ -18,6 +18,7 @@ Confirmed direction:
 - Automated delivery and optional manager follow-up.
 - Preference for an upfront purchase, with customization sold separately.
 - Square and Toast are the launch connector pair, alongside a validated scheduled-report path; see sections 4 and 11 for gating.
+- Customers supply their own read-only API credentials during setup (guided per provider); ShyftKick does not depend on provider partner programs or hosted OAuth at launch. Most target customers run a compatible POS and can obtain read access; the wizard walks the rest through requesting it.
 - The Queen Creek restaurant Mason co-operates is the design partner and first authorized account for development, reconciliation, the feasibility prototype, and ongoing dogfooding.
 
 Working assumptions:
@@ -90,7 +91,7 @@ Every connector converts source data into one shared internal model. Analysis us
 
 ### Connection paths
 
-1. **Direct API:** provider authorization or secure credential entry, permission checks, historical import, incremental updates, and reconciliation.
+1. **Direct API:** secure entry of customer-owned read-only credentials (the launch model), followed by permission checks, historical import, incremental updates, and reconciliation. Credentials are stored server-side in managed secret storage, never client-side. Provider-hosted OAuth is a later one-click convenience, not a launch dependency. The setup wizard includes per-provider instructions for creating or requesting credentials, since many operators will not have them on hand.
 2. **Integration service:** evaluate middleware for additional POS coverage; verify economics, installation needs, history, labor fields, and freshness before committing.
 3. **Scheduled report delivery:** provider-specific instructions for supported CSV/report templates, delivered to a dedicated ingestion address or supported file destination. Validate column mapping, units, totals, location, and date. Detect schema changes. Daily reports enable daily analysis, not live alerts. This path is a headline launch capability, not a fallback: it is provider-agnostic, it is the concrete form of the broad-POS-flexibility promise, and it covers Toast customers while commercial distribution approval is pending.
 4. **Manual upload:** useful for compatibility tests and recovery; visibly labeled as requiring customer action.
@@ -101,10 +102,10 @@ Unrecognized reports enter validation rather than production automation. AI may 
 
 | Provider | Evidence and intended approach | Gate before public availability |
 |---|---|---|
-| Square | Launch connector; build first — OAuth for seller authorization with no external distribution gate; Orders and Labor APIs are candidates | Demonstrate complete data and reconciliation in real restaurant accounts; verify required permissions and relevant product entitlements |
-| Toast (single account) | Read-only standard API credentials are obtainable by the restaurant itself on RMS Essentials or higher; if the design-partner restaurant runs Toast on an eligible plan, build and validate against its credentials, otherwise obtain an eligible test account | Demonstrate complete data and reconciliation on a real eligible account; confirm required scopes and actual data availability |
-| Toast (commercial distribution) | Partner/commercial route controlled by Toast; required before advertising a self-serve Toast connection to other restaurants | Submit the partner application on day one of Stage 1 — approval lead time, not engineering, is the critical path; until approval, Toast customers are served through the scheduled-report path |
-| 7shifts | Single-company tokens support initial evaluations; distributed customer OAuth is partner-gated | Validate pilot access and obtain/confirm production partnership route before advertising a broadly self-serve OAuth connection |
+| Square | Launch connector; build first — customer-created API access token (read-only scopes); Orders and Labor APIs are candidates | Demonstrate complete data and reconciliation in real restaurant accounts; verify required permissions and relevant product entitlements |
+| Toast (customer credentials) | Read-only standard API credentials are obtainable by the restaurant itself on RMS Essentials or higher; customers enter them during setup. If the design-partner restaurant runs Toast on an eligible plan, build and validate against its credentials, otherwise obtain an eligible test account | Demonstrate complete data and reconciliation on a real eligible account; confirm required scopes and actual data availability |
+| Toast (commercial distribution) | Partner/commercial route controlled by Toast — would enable one-click OAuth instead of credential entry | Deferred: not a launch dependency under the credential-entry model; revisit post-launch as a convenience upgrade |
+| 7shifts | Customer-supplied API token at launch (plans with API access); distributed OAuth is partner-gated and deferred | Validate that customer tokens provide the required schedule, timecard, and wage fields end to end |
 | Omnivore | Candidate middleware for supported systems such as Aloha, Brink, and Micros — post-v1 evaluation only; not a launch dependency now that the scheduled-report path is a launch capability | Obtain pricing and confirm licensing, installation, historical depth, field coverage, and unattended customer setup |
 | Other providers | Provider-specific feasibility investigation | Publish as supported only after end-to-end connection, import, and recovery tests |
 
@@ -301,7 +302,7 @@ One fully working direct connector, labor source where needed, 1–10 location d
 
 ### Public v1
 
-Public v1 ships the Square direct connector, the Toast direct connector, and one validated scheduled-report path. If Toast commercial-distribution approval is still pending at launch, list Toast as "supported through reports" on the compatibility checker and launch anyway; do not let the partner timeline move the date. Include a scheduling connection only when its access route is ready. If fewer connections are ready, limit sales to the verified compatibility list rather than advertising broader availability.
+Public v1 ships the Square direct connector, the Toast direct connector, and one validated scheduled-report path — all authenticated with customer-supplied read-only credentials, so no partner approval can block the date. The compatibility checker asks whether the customer has (or can obtain) API access and routes those who don't to per-provider instructions or the scheduled-report path. Include a scheduling connection only when its access route is ready. If fewer connections are ready, limit sales to the verified compatibility list rather than advertising broader availability.
 
 Public v1 includes the full onboarding journey, daily sales/category/daypart analysis, labor analysis conditional on data, weather context, per-location and company summaries, email/SMS delivery, action reminders and escalation, report history, billing/usage, and guided failure recovery.
 
@@ -311,7 +312,7 @@ Later releases can add validated intraday alerts, more connectors, richer schedu
 
 | Stage | Deliverable | Gate before proceeding |
 |---|---|---|
-| 1. Access and economics | Real sample data, endpoint/access map, provider dependency list, operating cost model. Day-one actions: submit the Toast partner application and begin importing the design-partner restaurant's data | Required data is obtainable; deployment model and provider path are credible |
+| 1. Access and economics | Real sample data, endpoint/access map, provider dependency list, operating cost model. Day-one action: obtain the design-partner restaurant's read-only API credentials and begin importing its data | Required data is obtainable; deployment model and provider path are credible |
 | 2. Data engine | Connector contract, canonical model, calculations, reconciliation, historical import | Source totals agree under documented definitions; corrections, missing records, and midnight boundaries behave correctly |
 | 3. Self-serve setup | Compatibility, auth, wizard, people, rules, preview | Unassisted owner can reach a valid preview on a supported account |
 | 4. Daily operation | Jobs, analysis, email/SMS, actions, retries, status | End-to-end daily cycle works with failure injection and no duplicate notifications |
@@ -349,8 +350,8 @@ The pilot is necessary evidence, not proof of long-term reliability. Continue me
 | Hosted versus customer-run | Hosted for simple setup | Architecture and billing implementation |
 | Purchase/operating model | Upfront license plus transparent operating charge | Checkout and public pricing |
 | First providers | Decided: Square and Toast are the launch pair, with Square built first and the scheduled-report path available at launch | Connector development |
-| Toast distribution pending at launch | Ship on time; list Toast as "supported through reports" until commercial approval lands | Public v1 launch listing |
-| 7shifts distribution | Confirm approved commercial connection route | Public scheduling integration |
+| Connection model | Decided: customer-supplied read-only API credentials at launch; provider OAuth and the Toast partner route deferred as post-launch conveniences | — (settled) |
+| 7shifts distribution | Customer-supplied API token at launch; confirm the token's field coverage during Stage 1 | Public scheduling integration |
 | SMS sender arrangement | Match provider onboarding to actual tenant/use-case structure | Production texting |
 | Initial service segment | Narrow pilot to similar operating models while supporting 1–10 locations | Default analysis thresholds |
 | License and support scope | Product operation included in operating charge; optional work clearly separate | Terms and sale |
