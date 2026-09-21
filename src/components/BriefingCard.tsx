@@ -49,7 +49,7 @@ export function BriefingCard({
         {briefing.scorecard.map((row) => (
           <div key={row.label} className="bg-surface px-4 py-3">
             <p className="text-xs text-muted">{row.label}</p>
-            <p className="text-lg font-semibold">{row.value}</p>
+            <p className="sk-data text-lg font-semibold">{row.value}</p>
             {row.deltaLabel && (
               <p className={`text-xs font-medium ${toneClasses[row.tone]}`}>
                 {row.deltaLabel}

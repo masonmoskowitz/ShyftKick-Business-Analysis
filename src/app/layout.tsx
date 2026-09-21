@@ -1,17 +1,28 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Cormorant_Garamond, Inter, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
-import { ChartNoAxesCombined } from "lucide-react";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+/* Same three voices as shyftkick.com: Cormorant Garamond carries the
+   headings and the wordmark, Inter the body, JetBrains Mono the data. */
+const inter = Inter({
   subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  style: ["normal", "italic"],
+  variable: "--font-cormorant",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -24,32 +35,35 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${cormorant.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <header className="border-b border-line bg-surface">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-            <Link href="/" className="flex items-center gap-2 font-semibold">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white">
-                <ChartNoAxesCombined size={18} aria-hidden />
+        <header className="border-b border-line bg-canvas">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+            <Link href="/" className="flex items-baseline gap-3">
+              <span className="font-display text-xl tracking-[0.24em]">
+                SHYFTKICK
               </span>
-              <span>
-                ShyftKick
-                <span className="ml-2 hidden text-sm font-normal text-muted sm:inline">
-                  Restaurant Intelligence
-                </span>
+              <span className="sk-label hidden text-muted sm:inline">
+                Intelligence
               </span>
             </Link>
-            <nav className="flex items-center gap-1 text-sm">
+            <nav className="flex items-center gap-2 text-sm">
+              <a
+                href="https://shyftkick.com"
+                className="sk-label hidden px-3 py-2 text-muted hover:text-ink md:inline"
+              >
+                shyftkick.com
+              </a>
               <Link
                 href="/compatibility"
-                className="rounded-md px-3 py-2 text-muted hover:bg-canvas hover:text-ink"
+                className="sk-label px-3 py-2 text-muted hover:text-ink"
               >
                 Compatibility
               </Link>
               <Link
                 href="/setup"
-                className="rounded-md bg-accent px-3 py-2 font-medium text-white hover:opacity-90"
+                className="sk-label rounded-sm bg-ink px-4 py-2.5 text-canvas hover:bg-accent hover:text-white"
               >
                 Guided setup
               </Link>
@@ -57,10 +71,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </div>
         </header>
         <div className="flex-1">{children}</div>
-        <footer className="border-t border-line">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-sm text-muted">
-            <p>ShyftKick — built by a working restaurant operator.</p>
-            <p>Read-only connections. Your systems stay yours.</p>
+        <footer className="bg-ink text-canvas">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-8 text-sm">
+            <p className="font-display text-lg tracking-[0.24em]">SHYFTKICK</p>
+            <p className="text-canvas/70">
+              Built by a working restaurant operator. Read-only connections —
+              your systems stay yours.
+            </p>
           </div>
         </footer>
       </body>

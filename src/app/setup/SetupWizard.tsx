@@ -836,50 +836,112 @@ function StepBody({
         </div>
       );
 
-    case "activation": {
-      const incomplete = SETUP_STEPS.filter(
-        (s) => s.id !== "activation" && !s.isComplete(state),
-      );
-      return (
-        <div className="max-w-xl space-y-4">
-          <ul className="space-y-1.5 text-sm">
-            {SETUP_STEPS.filter((s) => s.id !== "activation").map((s) => (
-              <li key={s.id} className="flex items-center gap-2">
-                {s.isComplete(state) ? (
-                  <Check size={15} className="text-good" aria-hidden />
-                ) : (
-                  <CircleDashed size={15} className="text-muted" aria-hidden />
-                )}
-                <span className={s.isComplete(state) ? "" : "text-muted"}>
-                  {s.title}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {state.activated ? (
-            <div className="rounded-lg border border-line bg-good-soft p-4 text-sm">
-              <p className="font-medium">Automation is active.</p>
-              <p className="mt-1 text-muted">
-                Briefings run automatically after each business day closes.
-                When something needs your attention — a stale connection, a
-                revoked permission — you get a guided recovery notice, not
-                silence.
-              </p>
-            </div>
-          ) : (
-            <button
-              type="button"
-              disabled={incomplete.length > 0}
-              onClick={() => update({ activated: true })}
-              className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
-            >
-              Activate automated briefings
-            </button>
-          )}
-        </div>
-      );
+    case "activation":
+      return <ActivationStep state={state} update={update} />;
+  }
+}
+
+function ActivationStep({
+  state,
+  update,
+}: {
+  state: SetupState;
+  update: (patch: Partial<SetupState>) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<string | null>(null);
+  const incomplete = SETUP_STEPS.filter(
+    (s) => s.id !== "activation" && !s.isComplete(state),
+  );
+
+  async function activate() {
+    setBusy(true);
+    setEmailStatus(null);
+    try {
+      const response = await fetch("/api/activation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: state.account.email,
+          businessName: state.account.businessName,
+          locationCount: state.locations.filter((l) => l.included).length || 1,
+        }),
+      });
+      const result = (await response.json()) as {
+        ok: boolean;
+        emails?: { kind: string; sent: boolean; mode: string; error?: string }[];
+      };
+      if (result.ok && result.emails) {
+        const delivered = result.emails.filter((e) => e.sent).length;
+        if (delivered === result.emails.length) {
+          setEmailStatus(
+            `Setup-completion email and your first briefing preview are on their way to ${state.account.email}.`,
+          );
+        } else if (result.emails.some((e) => e.mode === "logged")) {
+          setEmailStatus(
+            "Activation recorded. Email delivery isn't configured on this environment yet (RESEND_API_KEY) — the emails were logged instead of sent.",
+          );
+        } else {
+          setEmailStatus(
+            `Activation recorded, but email delivery reported a problem: ${result.emails.find((e) => e.error)?.error ?? "unknown error"}`,
+          );
+        }
+      } else {
+        setEmailStatus("Activation recorded; the email service returned an error.");
+      }
+    } catch {
+      setEmailStatus("Activation recorded; the email service couldn't be reached.");
+    } finally {
+      update({ activated: true });
+      setBusy(false);
     }
   }
+
+  return (
+    <div className="max-w-xl space-y-4">
+      <ul className="space-y-1.5 text-sm">
+        {SETUP_STEPS.filter((s) => s.id !== "activation").map((s) => (
+          <li key={s.id} className="flex items-center gap-2">
+            {s.isComplete(state) ? (
+              <Check size={15} className="text-good" aria-hidden />
+            ) : (
+              <CircleDashed size={15} className="text-muted" aria-hidden />
+            )}
+            <span className={s.isComplete(state) ? "" : "text-muted"}>
+              {s.title}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {state.activated ? (
+        <div className="rounded-lg border border-line bg-good-soft p-4 text-sm">
+          <p className="font-medium">Automation is active.</p>
+          {emailStatus && <p className="mt-1">{emailStatus}</p>}
+          <p className="mt-1 text-muted">
+            Briefings run automatically after each business day closes. When
+            something needs your attention — a stale connection, a revoked
+            permission — you get a guided recovery notice, not silence.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <button
+            type="button"
+            disabled={incomplete.length > 0 || busy}
+            onClick={activate}
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+          >
+            {busy ? "Activating…" : "Activate automated briefings"}
+          </button>
+          <p className="text-xs text-muted">
+            Activation sends a setup-completion email and your first briefing
+            (preview) to {state.account.email || "your account email"} right
+            away.
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ---------- credential entry ---------- */

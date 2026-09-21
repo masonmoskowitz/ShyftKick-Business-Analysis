@@ -25,11 +25,12 @@ export default function Home() {
       {/* Hero */}
       <section className="mx-auto max-w-6xl px-4 pb-10 pt-14">
         <div className="max-w-2xl">
-          <p className="text-sm font-medium text-accent">
-            For restaurants with 1–10 locations
+          <p className="sk-label text-accent">
+            Practical intelligence for restaurants with 1–10 locations
           </p>
-          <h1 className="mt-2 text-4xl font-semibold leading-tight">
-            Know what changed, see the evidence, act before it compounds.
+          <h1 className="mt-3 text-5xl leading-tight">
+            Know what changed, see the evidence,{" "}
+            <em className="text-accent">act before it compounds.</em>
           </h1>
           <p className="mt-4 text-lg text-muted">
             ShyftKick connects read-only to your POS and labor systems, then
@@ -37,16 +38,16 @@ export default function Home() {
             your own baselines, the numbers behind it, and the next useful
             action. No dashboards to remember to open. No reports to assemble.
           </p>
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-7 flex flex-wrap gap-3">
             <Link
               href="/compatibility"
-              className="flex items-center gap-1.5 rounded-md bg-accent px-5 py-2.5 font-medium text-white hover:opacity-90"
+              className="sk-label flex items-center gap-2 rounded-sm bg-ink px-6 py-3 text-canvas hover:bg-accent hover:text-white"
             >
-              Check your compatibility <ArrowRight size={17} aria-hidden />
+              Check your compatibility <ArrowRight size={15} aria-hidden />
             </Link>
             <Link
               href="/setup"
-              className="flex items-center gap-1.5 rounded-md border border-line px-5 py-2.5 font-medium hover:bg-surface"
+              className="sk-label flex items-center gap-2 rounded-sm border border-ink/30 px-6 py-3 hover:bg-surface"
             >
               See the guided setup
             </Link>
@@ -188,9 +189,9 @@ export default function Home() {
         <div className="mt-8 text-center">
           <Link
             href="/compatibility"
-            className="inline-flex items-center gap-1.5 rounded-md bg-accent px-6 py-3 font-medium text-white hover:opacity-90"
+            className="sk-label inline-flex items-center gap-2 rounded-sm bg-ink px-7 py-3.5 text-canvas hover:bg-accent hover:text-white"
           >
-            Start with the compatibility check <ArrowRight size={17} aria-hidden />
+            Start with the compatibility check <ArrowRight size={15} aria-hidden />
           </Link>
         </div>
       </section>
